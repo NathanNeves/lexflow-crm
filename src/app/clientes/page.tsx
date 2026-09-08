@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 
-import { mockClientes } from '@/data/mock-clientes'
+import { clientesMock } from '@/data/clientes'
 import type { ResumoClientes } from '@/lib/types'
 
 import { ClienteCard } from './components/cliente-card'
@@ -21,9 +21,8 @@ export default function ClientesPage() {
   const [filtros, setFiltros] = useState<FiltrosCliente>(filtrosPadrao)
 
   const clientesFiltrados = useMemo(() => {
-    let lista = [...mockClientes]
+    let lista = [...clientesMock]
 
-    // Busca textual
     if (filtros.busca.trim()) {
       const termo = filtros.busca.toLowerCase()
       lista = lista.filter(
@@ -35,22 +34,18 @@ export default function ClientesPage() {
       )
     }
 
-    // Status
     if (filtros.status !== 'todos') {
       lista = lista.filter((c) => c.status === filtros.status)
     }
 
-    // Segmento
     if (filtros.segmento !== 'todos') {
       lista = lista.filter((c) => c.segmento === filtros.segmento)
     }
 
-    // Origem
     if (filtros.origem !== 'todos') {
       lista = lista.filter((c) => c.origem === filtros.origem)
     }
 
-    // Ordenação
     switch (filtros.ordem) {
       case 'recentes':
         lista.sort((a, b) => new Date(b.dataCadastro).getTime() - new Date(a.dataCadastro).getTime())
@@ -76,11 +71,11 @@ export default function ClientesPage() {
   }, [filtros])
 
   const resumo: ResumoClientes = useMemo(() => ({
-    total: mockClientes.length,
-    ativos: mockClientes.filter((c) => c.status === 'ativo').length,
-    inativos: mockClientes.filter((c) => c.status === 'inativo').length,
-    prospects: mockClientes.filter((c) => c.status === 'prospect').length,
-    premium: mockClientes.filter((c) => c.segmento === 'premium').length,
+    total: clientesMock.length,
+    ativos: clientesMock.filter((c) => c.status === 'ativo').length,
+    inativos: clientesMock.filter((c) => c.status === 'inativo').length,
+    prospects: clientesMock.filter((c) => c.status === 'prospect').length,
+    premium: clientesMock.filter((c) => c.segmento === 'premium').length,
   }), [])
 
   return (
@@ -98,7 +93,7 @@ export default function ClientesPage() {
         filtros={filtros}
         onChange={setFiltros}
         resultadoBusca={clientesFiltrados.length}
-        total={mockClientes.length}
+        total={clientesMock.length}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
