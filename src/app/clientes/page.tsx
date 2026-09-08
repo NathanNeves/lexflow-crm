@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 
-import { clientesMock } from '@/data/clientes'
+import { mockClientes } from '@/data/mock-clientes'
 import type { ResumoClientes } from '@/lib/types'
 
 import { ClienteCard } from './components/cliente-card'
@@ -21,7 +21,7 @@ export default function ClientesPage() {
   const [filtros, setFiltros] = useState<FiltrosCliente>(filtrosPadrao)
 
   const clientesFiltrados = useMemo(() => {
-    let lista = [...clientesMock]
+    let lista = [...mockClientes]
 
     if (filtros.busca.trim()) {
       const termo = filtros.busca.toLowerCase()
@@ -71,11 +71,11 @@ export default function ClientesPage() {
   }, [filtros])
 
   const resumo: ResumoClientes = useMemo(() => ({
-    total: clientesMock.length,
-    ativos: clientesMock.filter((c) => c.status === 'ativo').length,
-    inativos: clientesMock.filter((c) => c.status === 'inativo').length,
-    prospects: clientesMock.filter((c) => c.status === 'prospect').length,
-    premium: clientesMock.filter((c) => c.segmento === 'premium').length,
+    total: mockClientes.length,
+    ativos: mockClientes.filter((c) => c.status === 'ativo').length,
+    inativos: mockClientes.filter((c) => c.status === 'inativo').length,
+    prospects: mockClientes.filter((c) => c.status === 'prospect').length,
+    premium: mockClientes.filter((c) => c.segmento === 'premium').length,
   }), [])
 
   return (
@@ -93,7 +93,7 @@ export default function ClientesPage() {
         filtros={filtros}
         onChange={setFiltros}
         resultadoBusca={clientesFiltrados.length}
-        total={clientesMock.length}
+        total={mockClientes.length}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
