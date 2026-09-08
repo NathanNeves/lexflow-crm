@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useSession } from "@/lib/auth-client"
 import { 
   LayoutDashboard, Users, Scale, DollarSign, 
   FileText, Clock, MessageSquare, 
-  BarChart3, Users2, Settings, Search,
-  Bell, ChevronDown, Menu, X
+  BarChart3, Users2, Settings, Menu, X
 } from "lucide-react"
 import { useState } from "react"
 
@@ -34,9 +34,22 @@ const mainNav: NavItem[] = [
   { label: "Colaboração", href: "/colaboracao", icon: Users2, module: "M7" },
 ]
 
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map(n => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+}
+
 export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const { data: session } = useSession()
+
+  const user = session?.user
+  const initials = user?.name ? getInitials(user.name) : "LF"
 
   return (
     <>
@@ -99,12 +112,12 @@ export function Sidebar() {
         <div className="p-3">
           <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
             <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-law-gold text-white text-xs">DR</AvatarFallback>
+              <AvatarFallback className="bg-law-gold text-white text-xs">{initials}</AvatarFallback>
             </Avatar>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-medium truncate">Dr. Ricardo Silva</p>
-                <p className="text-white/50 text-xs truncate">Sócio Administrador</p>
+                <p className="text-white text-sm font-medium truncate">{user?.name || "Usuário"}</p>
+                <p className="text-white/50 text-xs truncate">{user?.email || "..."}</p>
               </div>
             )}
             {!collapsed && (

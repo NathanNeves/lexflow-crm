@@ -3,9 +3,11 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { signOut } from "@/lib/auth-client"
+import { useRouter } from "next/navigation"
 
 import { 
-  Search, Bell, Sun, Moon, Menu 
+  Search, Bell, Sun, Moon, Menu, LogOut
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useState } from "react"
@@ -13,6 +15,13 @@ import { useState } from "react"
 export function Header() {
   const { theme, setTheme } = useTheme()
   const [searchOpen, setSearchOpen] = useState(false)
+  const router = useRouter()
+
+  async function handleSignOut() {
+    await signOut()
+    router.push("/login")
+    router.refresh()
+  }
 
   return (
     <header className="h-16 border-b bg-card flex items-center justify-between px-4 lg:px-6">
@@ -43,6 +52,16 @@ export function Header() {
         <Button variant="ghost" size="icon" className="text-muted-foreground relative">
           <Bell size={18} />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-law-gold" />
+        </Button>
+
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="text-muted-foreground hover:text-red-500"
+          onClick={handleSignOut}
+          title="Sair"
+        >
+          <LogOut size={18} />
         </Button>
       </div>
     </header>
