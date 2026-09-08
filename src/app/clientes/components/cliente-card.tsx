@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 import type { Cliente } from '@/lib/types'
 import { getInitials, formatCurrency, formatDate } from '@/lib/utils'
@@ -87,8 +88,8 @@ export function ClienteCard({ cliente }: Props) {
 
         {/* Ações */}
         <div className="flex gap-2 pt-2">
-          <Button variant="default" size="sm" className="bg-amber-600 hover:bg-amber-700">
-            Perfil
+          <Button asChild variant="default" size="sm" className="bg-amber-600 hover:bg-amber-700">
+            <Link href={`/clientes/${cliente.id}`}>Perfil</Link>
           </Button>
           <Button variant="outline" size="sm">
             Processos
