@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Plus, Search, MoreHorizontal, Scale, FileText, AlertCircle } from "lucide-react"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { Plus, Search, MoreHorizontal, FileText, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -11,86 +11,190 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type { Processo, StatusProcesso, Cliente } from "@/lib/types"
 
-interface Processo {
-  id: string
-  numero: string
-  titulo: string
-  cliente: string
-  area: string
-  tribunal: string
-  valor: number
-  status: "ativo" | "suspenso" | "encerrado"
-  dataAbertura: string
-  prazo?: string
+interface ProcessoComNome extends Processo {
+  clienteNome?: string
 }
 
-const MOCK_PROCESSOS: Processo[] = [
-  { id: "1", numero: "0001234-56.2026.8.26.0100", titulo: "Reclamação Trabalhista", cliente: "Carlos Alberto Silva", area: "Trabalhista", tribunal: "TRT-2", valor: 45000, status: "ativo", dataAbertura: "2026-03-15", prazo: "2026-09-20" },
-  { id: "2", numero: "0005678-90.2025.8.26.0100", titulo: "Ação de Cobrança", cliente: "Tech Solutions Ltda", area: "Empresarial", tribunal: "TJ-SP", valor: 120000, status: "ativo", dataAbertura: "2025-11-02", prazo: "2026-07-10" },
-  { id: "3", numero: "0009012-34.2026.8.26.0100", titulo: "Divórcio Consensual", cliente: "Mariana Costa Oliveira", area: "Família", tribunal: "TJ-RJ", valor: 15000, status: "ativo", dataAbertura: "2026-02-20", prazo: "2026-08-15" },
-  { id: "4", numero: "0003456-78.2025.8.26.0100", titulo: "Ação Indenizatória", cliente: "Roberto Mendes Dias", area: "Consumidor", tribunal: "TJ-MG", valor: 30000, status: "encerrado", dataAbertura: "2025-05-10", prazo: "2026-01-30" },
-  { id: "5", numero: "0007890-12.2026.8.26.0100", titulo: "Contrato de Prestação", cliente: "Construtora Nova Era S.A.", area: "Contratos", tribunal: "TJ-PR", valor: 250000, status: "ativo", dataAbertura: "2026-04-05", prazo: "2026-10-01" },
-  { id: "6", numero: "0001112-13.2025.8.26.0100", titulo: "Revisional de Alimentos", cliente: "Ana Paula dos Santos", area: "Família", tribunal: "TJ-SP", valor: 8000, status: "suspenso", dataAbertura: "2025-08-22", prazo: "2026-06-15" },
-]
+interface Resumo {
+  total: number
+  ativos: number
+  suspensos: number
+  arquivados: number
+  emRecurso: number
+  valorTotal: number
+}
 
-type StatusFilter = "todos" | "ativo" | "suspenso" | "encerrado"
+const AREAS = ["Trabalhista", "Cível", "Empresarial", "Família", "Tributário", "Contratos", "Consumidor", "Imobiliário", "Sucessões", "Penal", "Administrativo", "Ambiental"]
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  ativo: { label: "Ativo", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  suspenso: { label: "Suspenso", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
+  arquivado: { label: "Arquivado", cls: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400" },
+  recurso: { label: "Em Recurso", cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+}
+
+type StatusFilter = "todos" | "ativo" | "suspenso" | "arquivado" | "recurso"
+
+const EMPTY_FORM: Partial<Processo> & { clienteId: string } = {
+  clienteId: "",
+  numero: "",
+  tipo: "",
+  area: "",
+  tribunal: "",
+  vara: "",
+  dataDistribuicao: "",
+  status: "ativo",
+  valorCausa: 0,
+  parteContraria: "",
+  advogadoResponsavel: "",
+}
 
 export default function ProcessosPage() {
-  const [processos, setProcessos] = useState<Processo[]>(MOCK_PROCESSOS)
+  const [processos, setProcessos] = useState<ProcessoComNome[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [resumo, setResumo] = useState<Resumo>({ total: 0, ativos: 0, suspensos: 0, arquivados: 0, emRecurso: 0, valorTotal: 0 })
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<Partial<Processo>>({
-    numero: "", titulo: "", cliente: "", area: "", tribunal: "", valor: 0, status: "ativo", dataAbertura: "", prazo: "",
-  })
+  const [form, setForm] = useState<Partial<Processo> & { clienteId: string }>(EMPTY_FORM)
+  const [error, setError] = useState("")
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (statusFilter !== "todos") params.set("status", statusFilter)
+      if (search.trim()) params.set("busca", search.trim())
+
+      const [procRes, cliRes] = await Promise.all([
+        fetch(`/api/processos?${params.toString()}`),
+        fetch("/api/clientes?ordem=nome-az"),
+      ])
+
+      if (procRes.ok) {
+        const data = await procRes.json()
+        setProcessos(data.processos)
+        setResumo(data.resumo)
+      }
+
+      if (cliRes.ok) {
+        const data = await cliRes.json()
+        setClientes(data.clientes)
+      }
+    } catch (err) {
+      console.error("Erro ao carregar processos:", err)
+    } finally {
+      setLoading(false)
+    }
+  }, [search, statusFilter])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  // debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => { fetchData() }, 300)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 
   const filtered = useMemo(() => {
-    let list = processos
-    if (statusFilter !== "todos") list = list.filter((p) => p.status === statusFilter)
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter((p) => p.titulo.toLowerCase().includes(q) || p.numero.includes(q) || p.cliente.toLowerCase().includes(q))
-    }
-    return list
-  }, [processos, search, statusFilter])
-
-  const ativos = processos.filter((p) => p.status === "ativo")
-  const valorTotal = processos.reduce((acc, p) => acc + p.valor, 0)
+    return processos
+  }, [processos])
 
   function openNew() {
     setEditingId(null)
-    setForm({ numero: "", titulo: "", cliente: "", area: "", tribunal: "", valor: 0, status: "ativo", dataAbertura: new Date().toISOString().slice(0, 10), prazo: "" })
+    setError("")
+    setForm({ ...EMPTY_FORM, dataDistribuicao: new Date().toISOString().slice(0, 10) })
     setDialogOpen(true)
   }
 
-  function openEdit(p: Processo) {
+  function openEdit(p: ProcessoComNome) {
     setEditingId(p.id)
-    setForm({ ...p })
+    setError("")
+    setForm({
+      clienteId: p.clienteId,
+      numero: p.numero,
+      tipo: p.tipo,
+      area: p.area,
+      tribunal: p.tribunal,
+      vara: p.vara,
+      dataDistribuicao: p.dataDistribuicao || "",
+      status: p.status,
+      valorCausa: p.valorCausa,
+      parteContraria: p.parteContraria,
+      advogadoResponsavel: p.advogadoResponsavel,
+    })
     setDialogOpen(true)
   }
 
-  function handleSave() {
-    if (!form.titulo?.trim() || !form.numero?.trim()) return
-    if (editingId) {
-      setProcessos((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...form, id: editingId } as Processo : p)))
-    } else {
-      setProcessos((prev) => [{ ...form, id: String(Date.now()) } as Processo, ...prev])
+  async function handleSave() {
+    if (!form.clienteId || !form.numero?.trim()) {
+      setError("Cliente e número do processo são obrigatórios.")
+      return
     }
-    setDialogOpen(false)
+    setSaving(true)
+    setError("")
+
+    const payload = {
+      clienteId: form.clienteId,
+      numero: form.numero,
+      tipo: form.tipo,
+      area: form.area,
+      tribunal: form.tribunal,
+      vara: form.vara,
+      dataDistribuicao: form.dataDistribuicao || null,
+      status: form.status,
+      valorCausa: Number(form.valorCausa) || 0,
+      parteContraria: form.parteContraria,
+      advogadoResponsavel: form.advogadoResponsavel,
+    }
+
+    try {
+      const url = editingId ? `/api/processos/${editingId}` : "/api/processos"
+      const method = editingId ? "PUT" : "POST"
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        setError(err.error || "Erro ao salvar processo.")
+        setSaving(false)
+        return
+      }
+
+      setDialogOpen(false)
+      fetchData()
+    } catch {
+      setError("Erro de rede ao salvar.")
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function handleDelete(id: string) {
-    setProcessos((prev) => prev.filter((p) => p.id !== id))
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/processos/${id}`, { method: "DELETE" })
+      if (res.ok) fetchData()
+    } catch {
+      console.error("Erro ao excluir processo")
+    }
   }
 
-  const statusBadge: Record<string, { label: string; cls: string }> = {
-    ativo: { label: "Ativo", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-    suspenso: { label: "Suspenso", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
-    encerrado: { label: "Encerrado", cls: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400" },
-  }
+  const formatCurrency = (v: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v)
+
+  const getClienteNome = (p: ProcessoComNome) => p.clienteNome || clientes.find((c) => c.id === p.clienteId)?.nome || p.clienteId
 
   return (
     <div className="p-6 space-y-6">
@@ -112,71 +216,105 @@ export default function ProcessosPage() {
               <DialogDescription>Preencha os dados do processo judicial.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
+              {error && <p className="text-red-500 text-sm">{error}</p>}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Número do Processo</Label><Input value={form.numero || ""} onChange={(e) => setForm((p) => ({ ...p, numero: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Título</Label><Input value={form.titulo || ""} onChange={(e) => setForm((p) => ({ ...p, titulo: e.target.value }))} /></div>
+                <div className="space-y-2">
+                  <Label>Cliente *</Label>
+                  <Select
+                    value={form.clienteId}
+                    onValueChange={(v) => setForm((p) => ({ ...p, clienteId: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Número do Processo *</Label>
+                  <Input value={form.numero || ""} onChange={(e) => setForm((p) => ({ ...p, numero: e.target.value }))} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Cliente</Label><Input value={form.cliente || ""} onChange={(e) => setForm((p) => ({ ...p, cliente: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Área</Label>
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Input value={form.tipo || ""} onChange={(e) => setForm((p) => ({ ...p, tipo: e.target.value }))} placeholder="Ex: Reclamação Trabalhista" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Área</Label>
                   <Select value={form.area} onValueChange={(v) => setForm((p) => ({ ...p, area: v }))}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {["Trabalhista", "Cível", "Empresarial", "Família", "Tributário", "Contratos", "Consumidor", "Imobiliário", "Sucessões"].map((a) => (
-                        <SelectItem key={a} value={a}>{a}</SelectItem>
-                      ))}
+                      {AREAS.map((a) => (<SelectItem key={a} value={a}>{a}</SelectItem>))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Tribunal</Label><Input value={form.tribunal || ""} onChange={(e) => setForm((p) => ({ ...p, tribunal: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Valor da Causa (R$)</Label><Input type="number" value={form.valor || ""} onChange={(e) => setForm((p) => ({ ...p, valor: Number(e.target.value) }))} /></div>
+                <div className="space-y-2"><Label>Vara</Label><Input value={form.vara || ""} onChange={(e) => setForm((p) => ({ ...p, vara: e.target.value }))} /></div>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2"><Label>Abertura</Label><Input type="date" value={form.dataAbertura || ""} onChange={(e) => setForm((p) => ({ ...p, dataAbertura: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Prazo</Label><Input type="date" value={form.prazo || ""} onChange={(e) => setForm((p) => ({ ...p, prazo: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Status</Label>
-                  <Select value={form.status} onValueChange={(v: "ativo" | "suspenso" | "encerrado") => setForm((p) => ({ ...p, status: v }))}>
+                <div className="space-y-2"><Label>Distribuição</Label><Input type="date" value={form.dataDistribuicao || ""} onChange={(e) => setForm((p) => ({ ...p, dataDistribuicao: e.target.value }))} /></div>
+                <div className="space-y-2"><Label>Valor da Causa (R$)</Label><Input type="number" value={form.valorCausa || ""} onChange={(e) => setForm((p) => ({ ...p, valorCausa: Number(e.target.value) }))} /></div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={form.status || "ativo"} onValueChange={(v) => setForm((p) => ({ ...p, status: v as StatusProcesso }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ativo">Ativo</SelectItem>
                       <SelectItem value="suspenso">Suspenso</SelectItem>
-                      <SelectItem value="encerrado">Encerrado</SelectItem>
+                      <SelectItem value="arquivado">Arquivado</SelectItem>
+                      <SelectItem value="recurso">Em Recurso</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Parte Contrária</Label><Input value={form.parteContraria || ""} onChange={(e) => setForm((p) => ({ ...p, parteContraria: e.target.value }))} /></div>
+                <div className="space-y-2"><Label>Advogado Responsável</Label><Input value={form.advogadoResponsavel || ""} onChange={(e) => setForm((p) => ({ ...p, advogadoResponsavel: e.target.value }))} /></div>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave} className="bg-law-navy hover:bg-law-navy/90 text-white">{editingId ? "Salvar" : "Criar"}</Button>
+              <Button onClick={handleSave} disabled={saving} className="bg-law-navy hover:bg-law-navy/90 text-white">
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                {editingId ? "Salvar" : "Criar"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Total</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif">{processos.length}</p></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Ativos</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif text-green-600">{ativos.length}</p></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Suspensos</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif text-yellow-600">{processos.filter((p) => p.status === "suspenso").length}</p></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Valor Total</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif text-law-gold">R$ {valorTotal.toLocaleString("pt-BR")}</p></CardContent></Card>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Total</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif">{resumo.total}</p></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Ativos</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif text-green-600">{resumo.ativos}</p></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Suspensos</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif text-yellow-600">{resumo.suspensos}</p></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Em Recurso</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif text-purple-600">{resumo.emRecurso}</p></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-law-slate">Valor Total</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold font-serif text-law-gold">{formatCurrency(resumo.valorTotal)}</p></CardContent></Card>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-law-slate" />
-        <Input placeholder="Buscar por título, número ou cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+      {/* Search + Filter */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-law-slate" />
+          <Input placeholder="Buscar por nº, tipo, cliente ou parte..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        </div>
       </div>
 
-      {/* Tabs */}
+      {/* Status Tabs */}
       <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
         <TabsList>
-          <TabsTrigger value="todos">Todos</TabsTrigger>
-          <TabsTrigger value="ativo">Ativos</TabsTrigger>
-          <TabsTrigger value="suspenso">Suspensos</TabsTrigger>
-          <TabsTrigger value="encerrado">Encerrados</TabsTrigger>
+          <TabsTrigger value="todos">Todos ({resumo.total})</TabsTrigger>
+          <TabsTrigger value="ativo">Ativos ({resumo.ativos})</TabsTrigger>
+          <TabsTrigger value="suspenso">Suspensos ({resumo.suspensos})</TabsTrigger>
+          <TabsTrigger value="arquivado">Arquivados ({resumo.arquivados})</TabsTrigger>
+          <TabsTrigger value="recurso">Em Recurso ({resumo.emRecurso})</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -186,7 +324,7 @@ export default function ProcessosPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Título</TableHead>
+                <TableHead>Tipo</TableHead>
                 <TableHead className="hidden md:table-cell">Nº Processo</TableHead>
                 <TableHead className="hidden md:table-cell">Cliente</TableHead>
                 <TableHead className="hidden lg:table-cell">Área</TableHead>
@@ -196,17 +334,19 @@ export default function ProcessosPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-law-slate"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+              ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-12 text-law-slate">Nenhum processo encontrado.</TableCell></TableRow>
               ) : (
                 filtered.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell><p className="font-medium text-law-navy dark:text-white">{p.titulo}</p></TableCell>
+                    <TableCell><p className="font-medium text-law-navy dark:text-white">{p.tipo || "—"}</p><p className="text-xs text-law-slate hidden sm:block">{p.parteContraria && `× ${p.parteContraria}`}</p></TableCell>
                     <TableCell className="hidden md:table-cell font-mono text-xs">{p.numero}</TableCell>
-                    <TableCell className="hidden md:table-cell">{p.cliente}</TableCell>
-                    <TableCell className="hidden lg:table-cell"><Badge variant="outline" className="text-xs">{p.area}</Badge></TableCell>
-                    <TableCell className="hidden lg:table-cell">R$ {p.valor.toLocaleString("pt-BR")}</TableCell>
-                    <TableCell><Badge className={statusBadge[p.status]?.cls}>{statusBadge[p.status]?.label}</Badge></TableCell>
+                    <TableCell className="hidden md:table-cell">{getClienteNome(p)}</TableCell>
+                    <TableCell className="hidden lg:table-cell"><Badge variant="outline" className="text-xs">{p.area || "—"}</Badge></TableCell>
+                    <TableCell className="hidden lg:table-cell">{formatCurrency(p.valorCausa)}</TableCell>
+                    <TableCell><Badge className={STATUS_BADGE[p.status]?.cls}>{STATUS_BADGE[p.status]?.label ?? p.status}</Badge></TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button></DropdownMenuTrigger>
