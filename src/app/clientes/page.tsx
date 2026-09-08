@@ -7,6 +7,8 @@ import type { Cliente, ResumoClientes } from '@/lib/types'
 import { ClienteCard } from './components/cliente-card'
 import { ClienteFiltros, type FiltrosCliente } from './components/cliente-filters'
 import { ClienteResumo } from './components/cliente-resumo'
+import { ClienteSegmentacao } from './components/cliente-segmentacao'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const filtrosPadrao: FiltrosCliente = {
   busca: '',
@@ -22,6 +24,7 @@ export default function ClientesPage() {
   const [resumo, setResumo] = useState<ResumoClientes>({ total: 0, ativos: 0, inativos: 0, prospects: 0, premium: 0 })
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
+  const [abaAtiva, setAbaAtiva] = useState('lista')
 
   const buscarClientes = useCallback(async () => {
     setCarregando(true)
@@ -50,8 +53,10 @@ export default function ClientesPage() {
   }, [filtros])
 
   useEffect(() => {
-    buscarClientes()
-  }, [buscarClientes])
+    if (abaAtiva === 'lista') {
+      buscarClientes()
+    }
+  }, [buscarClientes, abaAtiva])
 
   return (
     <div className="space-y-6 p-6">
@@ -62,49 +67,64 @@ export default function ClientesPage() {
         </p>
       </div>
 
-      <ClienteResumo resumo={resumo} />
+      <Tabs value={abaAtiva} onValueChange={setAbaAtiva}>
+        <TabsList>
+          <TabsTrigger value="lista">Lista</TabsTrigger>
+          <TabsTrigger value="segmentacao">Segmentação</TabsTrigger>
+        </TabsList>
 
-      <ClienteFiltros
-        filtros={filtros}
-        onChange={setFiltros}
-        resultadoBusca={clientes.length}
-        total={resumo.total}
-      />
+        <TabsContent value="lista">
+          <div className="space-y-6">
+            <ClienteResumo resumo={resumo} />
 
-      {carregando && (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
-            <p className="text-sm text-muted-foreground">Carregando clientes…</p>
+            <ClienteFiltros
+              filtros={filtros}
+              onChange={setFiltros}
+              resultadoBusca={clientes.length}
+              total={resumo.total}
+            />
+
+            {carregando && (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+                  <p className="text-sm text-muted-foreground">Carregando clientes…</p>
+                </div>
+              </div>
+            )}
+
+            {erro && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center">
+                <p className="text-red-700">{erro}</p>
+                <button
+                  onClick={buscarClientes}
+                  className="mt-2 text-sm font-medium text-red-600 underline hover:text-red-800"
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            )}
+
+            {!carregando && !erro && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {clientes.map((cliente) => (
+                  <ClienteCard key={cliente.id} cliente={cliente} />
+                ))}
+              </div>
+            )}
+
+            {!carregando && !erro && clientes.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-lg text-muted-foreground">Nenhum cliente encontrado com esses filtros.</p>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        </TabsContent>
 
-      {erro && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center">
-          <p className="text-red-700">{erro}</p>
-          <button
-            onClick={buscarClientes}
-            className="mt-2 text-sm font-medium text-red-600 underline hover:text-red-800"
-          >
-            Tentar novamente
-          </button>
-        </div>
-      )}
-
-      {!carregando && !erro && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {clientes.map((cliente) => (
-            <ClienteCard key={cliente.id} cliente={cliente} />
-          ))}
-        </div>
-      )}
-
-      {!carregando && !erro && clientes.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-lg text-muted-foreground">Nenhum cliente encontrado com esses filtros.</p>
-        </div>
-      )}
+        <TabsContent value="segmentacao">
+          <ClienteSegmentacao />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

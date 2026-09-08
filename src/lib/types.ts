@@ -64,3 +64,46 @@ export interface ResumoClientes {
   prospects: number
   premium: number
 }
+
+export interface SegmentoData {
+  segmento: string
+  label: string
+  total: number
+  ativos: number
+  inativos: number
+  prospects: number
+  valorTotal: number
+  processosAtivos: number
+  processosTotal: number
+}
+
+export interface OrigemSegmentoData {
+  origem: string
+  label: string
+  segmento: string
+  segmentoLabel: string
+  total: number
+}
+
+export interface StatusSegmentoData {
+  status: string
+  label: string
+  segmento: string
+  segmentoLabel: string
+  total: number
+}
+
+export interface LabelsDictionary {
+  segmentos: Record<string, string>
+  origens: Record<string, string>
+  status: Record<string, string>
+}
+
+export interface SegmentacaoData {
+  totalGeral: number
+  valorTotalGeral: number
+  porSegmento: SegmentoData[]
+  porOrigem: OrigemSegmentoData[]
+  porStatus: StatusSegmentoData[]
+  labels: LabelsDictionary
+}
