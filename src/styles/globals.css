@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@layer base {
+  :root {
+    --background: 40 30% 98%;
+    --foreground: 222 40% 12%;
+    --card: 40 30% 100%;
+    --card-foreground: 222 40% 12%;
+    --popover: 40 30% 100%;
+    --popover-foreground: 222 40% 12%;
+    --primary: 222 40% 20%;
+    --primary-foreground: 40 30% 98%;
+    --secondary: 40 20% 90%;
+    --secondary-foreground: 222 40% 20%;
+    --muted: 40 20% 94%;
+    --muted-foreground: 222 15% 45%;
+    --accent: 40 50% 52%;
+    --accent-foreground: 40 30% 98%;
+    --destructive: 0 45% 35%;
+    --destructive-foreground: 40 30% 98%;
+    --border: 40 15% 85%;
+    --input: 40 15% 85%;
+    --ring: 222 40% 20%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 40% 8%;
+    --foreground: 40 30% 92%;
+    --card: 222 40% 12%;
+    --card-foreground: 40 30% 92%;
+    --popover: 222 40% 12%;
+    --popover-foreground: 40 30% 92%;
+    --primary: 40 50% 52%;
+    --primary-foreground: 222 40% 8%;
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 40 30% 92%;
+    --muted: 222 30% 15%;
+    --muted-foreground: 222 15% 60%;
+    --accent: 40 50% 52%;
+    --accent-foreground: 222 40% 8%;
+    --destructive: 0 35% 45%;
+    --destructive-foreground: 40 30% 98%;
+    --border: 222 25% 22%;
+    --input: 222 25% 22%;
+    --ring: 40 50% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  .law-card {
+    @apply bg-card border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200;
+  }
+  .law-heading {
+    @apply font-serif text-law-navy dark:text-law-cream;
+  }
+}
