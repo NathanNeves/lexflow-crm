@@ -41,7 +41,7 @@ export function ClienteFiltros({ filtros, onChange, resultadoBusca, total }: Pro
           <Input
             placeholder="Buscar por nome, CPF ou e-mail…"
             value={filtros.busca}
-            onChange={(e) => atualizar('busca', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => atualizar('busca', e.target.value)}
           />
         </div>
 

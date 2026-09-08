@@ -49,3 +49,7 @@ export const BRAZILIAN_STATES = [
 ] as const;
 
 export type BrazilianState = (typeof BRAZILIAN_STATES)[number];
+
+export function getInitials(name: string): string {
+  return initials(name);
+}
